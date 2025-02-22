@@ -208,3 +208,71 @@
     (ok true)
   )
 )
+
+;; Verify item validation
+(define-read-only (verify-validation (item-id uint) (validation-type uint))
+  (let
+    (
+      (validation (unwrap! 
+        (map-get? item-validations {item-id: item-id, validation-type: validation-type})
+        ERR_INVALID_VALIDATION
+      ))
+    )
+    (ok (get active validation))
+  )
+)
+
+;; Revoke validation
+(define-public (revoke-validation (item-id uint) (validation-type uint))
+  (begin
+    (asserts! (is-valid-item-id item-id) ERR_INVALID_ITEM)
+    (asserts! (is-valid-validation-type validation-type) ERR_INVALID_VALIDATION)
+    
+    (let
+      (
+        (validation (unwrap! 
+          (map-get? item-validations {item-id: item-id, validation-type: validation-type})
+          ERR_INVALID_VALIDATION
+        ))
+      )
+      (asserts! 
+        (or
+          (is-contract-admin tx-sender)
+          (is-eq (get validator validation) tx-sender)
+        )
+        ERR_NOT_AUTHORIZED
+      )
+      
+      (map-set item-validations
+        {item-id: item-id, validation-type: validation-type}
+        (merge validation {active: false})
+      )
+      (ok true)
+    )
+  )
+)
+
+;; Get item timeline
+(define-read-only (get-item-timeline (item-id uint))
+  (let 
+    (
+      (item (unwrap! (map-get? item-data {item-id: item-id}) ERR_INVALID_ITEM))
+    )
+    (ok (get timeline item))
+  )
+)
+
+;; Get current item state
+(define-read-only (get-item-state (item-id uint))
+  (let 
+    (
+      (item (unwrap! (map-get? item-data {item-id: item-id}) ERR_INVALID_ITEM))
+    )
+    (ok (get current-state item))
+  )
+)
+
+;; Get validation details
+(define-read-only (get-validation-details (item-id uint) (validation-type uint))
+  (ok (map-get? item-validations {item-id: item-id, validation-type: validation-type}))
+)
