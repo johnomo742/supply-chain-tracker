@@ -130,3 +130,81 @@
   )
 )
 
+;; Update item state
+(define-public (update-item-state (item-id uint) (new-state uint))
+  (let 
+    (
+      (item (unwrap! (map-get? item-data {item-id: item-id}) ERR_INVALID_ITEM))
+    )
+    (asserts! (is-valid-item-id item-id) ERR_INVALID_ITEM)
+    (asserts! (is-valid-state new-state) ERR_INVALID_STATE)
+    (asserts! 
+      (or 
+        (is-contract-admin tx-sender)
+        (is-eq (get custodian item) tx-sender)
+      ) 
+      ERR_NOT_AUTHORIZED
+    )
+    
+    (map-set item-data 
+      {item-id: item-id}
+      (merge item 
+        {
+          current-state: new-state,
+          timeline: (unwrap-panic 
+            (as-max-len? 
+              (append (get timeline item) {state: new-state, timestamp: block-height}) 
+              u10
+            )
+          )
+        }
+      )
+    )
+    (ok true)
+  )
+)
+
+;; Add validator
+(define-public (add-validator (validator principal) (validation-type uint))
+  (begin
+    (asserts! (is-contract-admin tx-sender) ERR_NOT_AUTHORIZED)
+    (asserts! (is-valid-validation-type validation-type) ERR_INVALID_VALIDATION)
+    (asserts! (is-valid-principal validator) ERR_INVALID_PRINCIPAL)
+    
+    (let
+      ((checked-validator validator)
+       (checked-type validation-type))
+      (map-set approved-validators
+        {validator: checked-validator, validation-type: checked-type}
+        {approved: true}
+      )
+      (ok true)
+    )
+  )
+)
+
+;; Add validation to item
+(define-public (add-validation (item-id uint) (validation-type uint))
+  (begin
+    (asserts! (is-valid-item-id item-id) ERR_INVALID_ITEM)
+    (asserts! (is-valid-validation-type validation-type) ERR_INVALID_VALIDATION)
+    (asserts! (is-approved-validator tx-sender validation-type) ERR_NOT_AUTHORIZED)
+    
+    (asserts! 
+      (is-none 
+        (map-get? item-validations {item-id: item-id, validation-type: validation-type})
+      )
+      ERR_VALIDATION_EXISTS
+    )
+    
+    (map-set item-validations
+      {item-id: item-id, validation-type: validation-type}
+      {
+        validator: tx-sender,
+        timestamp: block-height,
+        active: true
+      }
+    )
+    (ok true)
+  )
+)
